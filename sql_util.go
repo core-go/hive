@@ -3,21 +3,14 @@ package hive
 import (
 	"context"
 	"errors"
-	_ "github.com/beltran/gohive"
-	hive "github.com/beltran/gohive"
-	"github.com/core-go/log"
+	hv "github.com/beltran/gohive"
 	"reflect"
 	"strings"
 )
 
-func Query(ctx context.Context, db *hive.Cursor, fieldsIndex map[string]int, results interface{}, sql string, values ...interface{}) error {
-	return QueryWithArray(ctx, db, fieldsIndex, results, sql, values...)
-}
-
-func QueryWithArray(ctx context.Context, cursor *hive.Cursor, fieldsIndex map[string]int, results interface{}, sql string, values ...interface{}) error {
+func Query(ctx context.Context, cursor *hv.Cursor, fieldsIndex map[string]int, results interface{}, sql string) error {
 	cursor.Exec(ctx, sql)
 	if cursor.Err != nil {
-		log.Fatal(ctx, cursor.Err)
 		return cursor.Err
 	}
 	modelType := reflect.TypeOf(results).Elem().Elem()
@@ -112,7 +105,7 @@ func GetColumnsSelect(modelType reflect.Type) []string {
 	return columnNameKeys
 }
 
-func GetColumns(cursors *hive.Cursor) ([]string, map[string]string, error) {
+func GetColumns(cursors *hv.Cursor) ([]string, map[string]string, error) {
 	var mcols = make(map[string]string, 0)
 	var columnNames = make([]string, 0)
 	m := cursors.Description()
@@ -126,7 +119,7 @@ func GetColumns(cursors *hive.Cursor) ([]string, map[string]string, error) {
 	return columnNames, mcols, nil
 }
 
-func Scan(cursors *hive.Cursor, modelType reflect.Type, fieldsIndex map[string]int) (t []interface{}, err error) {
+func Scan(cursors *hv.Cursor, modelType reflect.Type, fieldsIndex map[string]int) (t []interface{}, err error) {
 	if fieldsIndex == nil {
 		fieldsIndex, err = GetColumnIndexes(modelType)
 		if err != nil {
