@@ -45,11 +45,26 @@ func (b *SearchBuilder) Search(ctx context.Context, m interface{}, results inter
 		return -1, cursor.Err
 	}
 	err := Query(ctx, cursor, b.fieldsIndex, results, query)
-	if b.Map != nil {
-		_, err := MapModels(ctx, results, b.Map)
+	if err != nil {
 		return -1, err
 	}
-	return -1, err
+	countQuery := BuildCountQuery(sql)
+	cursor.Exec(ctx, countQuery)
+	if cursor.Err != nil {
+		return -1, cursor.Err
+	}
+	var count int64
+	for cursor.HasMore(ctx) {
+		cursor.FetchOne(ctx, &count)
+		if cursor.Err != nil {
+			return count, cursor.Err
+		}
+	}
+	if b.Map != nil {
+		_, err := MapModels(ctx, results, b.Map)
+		return count, err
+	}
+	return count, err
 }
 func BuildPagingQuery(sql string, limit int64, offset int64) string {
 	if limit > 0 {
@@ -58,27 +73,27 @@ func BuildPagingQuery(sql string, limit int64, offset int64) string {
 	}
 	return sql
 }
-func BuildCountQuery(sql string, params []interface{}) (string, []interface{}) {
+func BuildCountQuery(sql string) string {
 	i := strings.Index(sql, "select ")
 	if i < 0 {
-		return sql, params
+		return sql
 	}
 	j := strings.Index(sql, " from ")
 	if j < 0 {
-		return sql, params
+		return sql
 	}
 	k := strings.Index(sql, " order by ")
 	h := strings.Index(sql, " distinct ")
 	if h > 0 {
 		sql3 := `select count(*) as total from (` + sql[i:] + `) as main`
-		return sql3, params
+		return sql3
 	}
 	if k > 0 {
 		sql3 := `select count(*) as total ` + sql[j:k]
-		return sql3, params
+		return sql3
 	} else {
 		sql3 := `select count(*) as total ` + sql[j:]
-		return sql3, params
+		return sql3
 	}
 }
 func BuildSort(sortString string, modelType reflect.Type) string {

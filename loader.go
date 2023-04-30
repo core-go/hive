@@ -80,7 +80,7 @@ func (s *Loader) Load(ctx context.Context, id interface{}) (interface{}, error) 
 	}
 }
 
-func (s *Loader) LoadAndDecode(ctx context.Context, id interface{}, result interface{}) (bool, error) {
+func (s *Loader) Get(ctx context.Context, id interface{}, result interface{}) (bool, error) {
 	query := BuildFindById(s.table, id, s.mapJsonColumnKeys, s.keys)
 	cursor := s.Connection.Cursor()
 	defer s.Connection.Close()
@@ -98,6 +98,10 @@ func (s *Loader) LoadAndDecode(ctx context.Context, id interface{}, result inter
 		return true, er2
 	}
 	return true, nil
+}
+
+func (s *Loader) LoadAndDecode(ctx context.Context, id interface{}, result interface{}) (bool, error) {
+	return s.Get(ctx, id, result)
 }
 
 func (s *Loader) Exist(ctx context.Context, id interface{}) (bool, error) {
