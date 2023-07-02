@@ -15,6 +15,30 @@ const (
 	DefaultPagingFormat = " limit %s offset %s "
 )
 
+func GetOffset(limit int64, page int64, opts...int64) int64 {
+	var firstLimit int64 = 0
+	if len(opts) > 0 && opts[0] > 0 {
+		firstLimit = opts[0]
+	}
+	if firstLimit > 0 {
+		if page <= 1 {
+			return 0
+		} else {
+			offset := limit*(page-2) + firstLimit
+			if offset < 0 {
+				return 0
+			}
+			return offset
+		}
+	} else {
+		offset := limit * (page - 1)
+		if offset < 0 {
+			return 0
+		}
+		return offset
+	}
+}
+
 type SearchBuilder struct {
 	Connection  *hv.Connection
 	BuildQuery  func(sm interface{}) string
@@ -66,7 +90,20 @@ func (b *SearchBuilder) Search(ctx context.Context, m interface{}, results inter
 	}
 	return count, err
 }
+func Count(ctx context.Context, cursor *hv.Cursor, query string) (int64, error) {
+	var count int64
+	for cursor.HasMore(ctx) {
+		cursor.FetchOne(ctx, &count)
+		if cursor.Err != nil {
+			return count, cursor.Err
+		}
+	}
+	return 0, nil
+}
 func BuildPagingQuery(sql string, limit int64, offset int64) string {
+	if offset < 0 {
+		offset = 0
+	}
 	if limit > 0 {
 		pagingQuery := fmt.Sprintf(DefaultPagingFormat, strconv.FormatInt(limit, 10), strconv.FormatInt(offset, 10))
 		sql += pagingQuery
@@ -96,7 +133,7 @@ func BuildCountQuery(sql string) string {
 		return sql3
 	}
 }
-func BuildSort(sortString string, modelType reflect.Type) string {
+func GetSort(sortString string, modelType reflect.Type) string {
 	var sort = make([]string, 0)
 	sorts := strings.Split(sortString, ",")
 	for i := 0; i < len(sorts); i++ {
@@ -113,7 +150,15 @@ func BuildSort(sortString string, modelType reflect.Type) string {
 		}
 	}
 	if len(sort) > 0 {
-		return ` order by ` + strings.Join(sort, ",")
+		return strings.Join(sort, ",")
+	} else {
+		return ""
+	}
+}
+func BuildSort(sortString string, modelType reflect.Type) string {
+	sort := GetSort(sortString, modelType)
+	if len(sort) > 0 {
+		return ` order by ` + sort
 	} else {
 		return ""
 	}
