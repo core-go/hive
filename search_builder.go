@@ -92,6 +92,10 @@ func (b *SearchBuilder) Search(ctx context.Context, m interface{}, results inter
 }
 func Count(ctx context.Context, cursor *hv.Cursor, query string) (int64, error) {
 	var count int64
+	cursor.Exec(ctx, query)
+	if cursor.Err != nil {
+		return -1, cursor.Err
+	}
 	for cursor.HasMore(ctx) {
 		cursor.FetchOne(ctx, &count)
 		if cursor.Err != nil {
