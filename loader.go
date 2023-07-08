@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+func InitFields(modelType reflect.Type) (map[string]int, string, error) {
+	fieldsIndex, err := GetColumnIndexes(modelType)
+	if err != nil {
+		return nil, "", err
+	}
+	fields := BuildFields(modelType)
+	return fieldsIndex, fields, nil
+}
+
 type Loader struct {
 	Connection        *hv.Connection
 	Map               func(ctx context.Context, model interface{}) (interface{}, error)

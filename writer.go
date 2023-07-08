@@ -9,15 +9,16 @@ import (
 	"strings"
 )
 
-func Init(modelType reflect.Type) (map[string]int, *Schema, map[string]string, []string, []string, error) {
+func Init(modelType reflect.Type) (map[string]int, *Schema, map[string]string, []string, []string, string, error) {
 	fieldsIndex, err := GetColumnIndexes(modelType)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, "", err
 	}
 	schema := CreateSchema(modelType)
+	fields := BuildFieldsBySchema(schema)
 	jsonColumnMap := MakeJsonColumnMap(modelType)
 	keys, arr := FindPrimaryKeys(modelType)
-	return fieldsIndex, schema, jsonColumnMap, keys, arr, nil
+	return fieldsIndex, schema, jsonColumnMap, keys, arr, fields, nil
 }
 
 type Writer struct {
