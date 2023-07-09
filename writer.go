@@ -79,7 +79,7 @@ func (s *Writer) Insert(ctx context.Context, model interface{}) (int64, error) {
 	}
 	query := BuildToInsertWithVersion(s.table, m, s.versionIndex, false, s.schema)
 	cursor := s.Connection.Cursor()
-	defer s.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, query)
 	return 1, cursor.Err
 }
@@ -96,7 +96,7 @@ func (s *Writer) Update(ctx context.Context, model interface{}) (int64, error) {
 	}
 	query := BuildToUpdateWithVersion(s.table, m, s.versionIndex, s.schema)
 	cursor := s.Connection.Cursor()
-	defer s.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, query)
 	return 1, cursor.Err
 }
@@ -113,7 +113,7 @@ func (s *Writer) Save(ctx context.Context, model interface{}) (int64, error) {
 	}
 	query := BuildToSave(s.table, m, s.schema)
 	cursor := s.Connection.Cursor()
-	defer s.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, query)
 	return 1, cursor.Err
 }
@@ -128,7 +128,7 @@ func (s *Writer) Patch(ctx context.Context, model map[string]interface{}) (int64
 	dbColumnMap := JSONToColumns(model, s.jsonColumnMap)
 	query := BuildToPatchWithVersion(s.table, dbColumnMap, s.schema.SKeys, s.versionDBField)
 	cursor := s.Connection.Cursor()
-	defer s.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, query)
 	return 1, cursor.Err
 }
@@ -154,7 +154,7 @@ func (s *Writer) Delete(ctx context.Context, id interface{}) (int64, error) {
 	query := BuildQueryById(id, s.modelType, s.keys[0])
 	sql := BuildToDelete(s.table, query)
 	cursor := s.Connection.Cursor()
-	defer s.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, sql)
 	return 1, cursor.Err
 }

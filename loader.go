@@ -52,7 +52,7 @@ func (s *Loader) All(ctx context.Context) (interface{}, error) {
 	query := BuildSelectAllQuery(s.table)
 	result := reflect.New(s.modelsType).Interface()
 	cursor := s.Connection.Cursor()
-	defer s.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, query)
 	if cursor.Err != nil {
 		return nil, cursor.Err
@@ -69,7 +69,7 @@ func (s *Loader) All(ctx context.Context) (interface{}, error) {
 func (s *Loader) Load(ctx context.Context, id interface{}) (interface{}, error) {
 	query := BuildFindById(s.table, id, s.mapJsonColumnKeys, s.keys)
 	cursor := s.Connection.Cursor()
-	defer s.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, query)
 	if cursor.Err != nil {
 		return nil, cursor.Err
@@ -92,16 +92,35 @@ func (s *Loader) Load(ctx context.Context, id interface{}) (interface{}, error) 
 func (s *Loader) Get(ctx context.Context, id interface{}, result interface{}) (bool, error) {
 	query := BuildFindById(s.table, id, s.mapJsonColumnKeys, s.keys)
 	cursor := s.Connection.Cursor()
-	defer s.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, query)
 	if cursor.Err != nil {
 		return false, cursor.Err
 	}
-	columns, _, er0 := GetColumns(cursor)
+	columns, mcols, er0 := GetColumns(cursor)
 	if er0 != nil {
 		return false, er0
 	}
-	StructScan(result, columns, s.fieldsIndex)
+	r, _ := StructScan(result, columns, s.fieldsIndex)
+	fieldPointers := cursor.RowMap(ctx)
+	if cursor.Err != nil {
+		return false, cursor.Err
+	}
+	for _, c := range columns {
+		if colm, ok := mcols[c]; ok {
+			if v, ok := fieldPointers[colm]; ok {
+				if v != nil {
+					v = reflect.Indirect(reflect.ValueOf(v)).Interface()
+					if fieldValue, ok := r[c]; ok && !IsZeroOfUnderlyingType(v) {
+						err1 := ConvertAssign(fieldValue, v)
+						if err1 != nil {
+							return false, err1
+						}
+					}
+				}
+			}
+		}
+	}
 	if s.Map != nil {
 		_, er2 := s.Map(ctx, result)
 		return true, er2

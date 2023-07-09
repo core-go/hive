@@ -63,7 +63,7 @@ func (b *SearchBuilder) Search(ctx context.Context, m interface{}, results inter
 	sql := b.BuildQuery(m)
 	query := BuildPagingQuery(sql, limit, offset)
 	cursor := b.Connection.Cursor()
-	defer b.Connection.Close()
+	defer cursor.Close()
 	cursor.Exec(ctx, sql)
 	if cursor.Err != nil {
 		return -1, cursor.Err
