@@ -658,6 +658,9 @@ func join(strs ...string) string {
 }
 
 func WrapString(v string) string {
+	if strings.Index(v, `'`) >= 0 {
+		return join(`'`, strings.Replace(v, "'", "''", -1), `'`)
+	}
 	return join(`'`, v, `'`)
 }
 
