@@ -1,18 +1,19 @@
-package hive
+package batch
 
 import (
 	"context"
 	hv "github.com/beltran/gohive"
+	h "github.com/core-go/hive"
 	"reflect"
 )
 
 type StreamWriter struct {
-	connection   *hv.Connection
-	tableName    string
-	Map          func(ctx context.Context, model interface{}) (interface{}, error)
-	schema       *Schema
-	batchSize    int
-	batch        []interface{}
+	connection *hv.Connection
+	tableName  string
+	Map        func(ctx context.Context, model interface{}) (interface{}, error)
+	schema     *h.Schema
+	batchSize  int
+	batch      []interface{}
 }
 
 func NewStreamWriter(connection *hv.Connection, tableName string, modelType reflect.Type, batchSize int, options ...func(context.Context, interface{}) (interface{}, error)) *StreamWriter {
@@ -20,7 +21,7 @@ func NewStreamWriter(connection *hv.Connection, tableName string, modelType refl
 	if len(options) >= 1 {
 		mp = options[0]
 	}
-	schema := CreateSchema(modelType)
+	schema := h.CreateSchema(modelType)
 	return &StreamWriter{connection: connection, schema: schema, tableName: tableName, batchSize: batchSize, Map: mp}
 }
 

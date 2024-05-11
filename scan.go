@@ -1,44 +1,12 @@
 package hive
 
 import (
-	"context"
 	"errors"
 	hv "github.com/beltran/gohive"
 	"reflect"
 	"strings"
 )
 
-const (
-	IgnoreReadWrite = "-"
-)
-
-func Query(ctx context.Context, cursor *hv.Cursor, fieldsIndex map[string]int, results interface{}, sql string) error {
-	cursor.Exec(ctx, sql)
-	if cursor.Err != nil {
-		return cursor.Err
-	}
-	modelType := reflect.TypeOf(results).Elem().Elem()
-	tb, er3 := Scan(cursor, modelType, fieldsIndex)
-	if er3 != nil {
-		return er3
-	}
-	for _, element := range tb {
-		appendToArray(results, element)
-	}
-	return nil
-}
-
-func appendToArray(arr interface{}, item interface{}) interface{} {
-	arrValue := reflect.ValueOf(arr)
-	elemValue := reflect.Indirect(arrValue)
-
-	itemValue := reflect.ValueOf(item)
-	if itemValue.Kind() == reflect.Ptr {
-		itemValue = reflect.Indirect(itemValue)
-	}
-	elemValue.Set(reflect.Append(elemValue, itemValue))
-	return arr
-}
 func GetColumnIndexes(modelType reflect.Type) (map[string]int, error) {
 	ma := make(map[string]int, 0)
 	if modelType.Kind() != reflect.Struct {
@@ -55,7 +23,6 @@ func GetColumnIndexes(modelType reflect.Type) (map[string]int, error) {
 	}
 	return ma, nil
 }
-
 func FindTag(tag string, key string) (string, bool) {
 	if has := strings.Contains(tag, key); has {
 		str1 := strings.Split(tag, ";")
@@ -71,7 +38,6 @@ func FindTag(tag string, key string) (string, bool) {
 	}
 	return "", false
 }
-
 func GetColumns(cursors *hv.Cursor) ([]string, map[string]string, error) {
 	var mcols = make(map[string]string, 0)
 	var columnNames = make([]string, 0)
@@ -84,45 +50,6 @@ func GetColumns(cursors *hv.Cursor) ([]string, map[string]string, error) {
 		mcols[col] = k
 	}
 	return columnNames, mcols, nil
-}
-
-func Scan(cursors *hv.Cursor, modelType reflect.Type, fieldsIndex map[string]int) (t []interface{}, err error) {
-	if fieldsIndex == nil {
-		fieldsIndex, err = GetColumnIndexes(modelType)
-		if err != nil {
-			return
-		}
-	}
-	columns, mcols, er0 := GetColumns(cursors)
-	if er0 != nil {
-		return nil, er0
-	}
-	ctx := context.Background()
-	for cursors.HasMore(ctx) {
-		initModel := reflect.New(modelType).Interface()
-		r, _ := StructScan(initModel, columns, fieldsIndex)
-		fieldPointers := cursors.RowMap(ctx)
-		if cursors.Err != nil {
-			return t, cursors.Err
-		}
-		for _, c := range columns {
-			if colm, ok := mcols[c]; ok {
-				if v, ok := fieldPointers[colm]; ok {
-					if v != nil {
-						v = reflect.Indirect(reflect.ValueOf(v)).Interface()
-						if fieldValue, ok := r[c]; ok && !IsZeroOfUnderlyingType(v) {
-							err1 := ConvertAssign(fieldValue, v)
-							if err1 != nil {
-								return nil, err1
-							}
-						}
-					}
-				}
-			}
-		}
-		t = append(t, initModel)
-	}
-	return
 }
 func StructScan(s interface{}, columns []string, fieldsIndex map[string]int) (r map[string]interface{}, swapValues map[int]interface{}) {
 	return StructScanAndIgnore(s, columns, fieldsIndex, -1)

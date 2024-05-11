@@ -1,8 +1,9 @@
-package hive
+package writer
 
 import (
 	"context"
 	hv "github.com/beltran/gohive"
+	h "github.com/core-go/hive"
 	"reflect"
 )
 
@@ -11,7 +12,7 @@ type Updater struct {
 	tableName    string
 	Map          func(ctx context.Context, model interface{}) (interface{}, error)
 	VersionIndex int
-	schema       *Schema
+	schema       *h.Schema
 }
 
 func NewUpdater(db *hv.Connection, tableName string, modelType reflect.Type, options ...func(context.Context, interface{}) (interface{}, error)) *Updater {
@@ -26,7 +27,7 @@ func NewUpdaterWithVersion(db *hv.Connection, tableName string, modelType reflec
 	if len(options) > 0 && options[0] >= 0 {
 		version = options[0]
 	}
-	schema := CreateSchema(modelType)
+	schema := h.CreateSchema(modelType)
 	return &Updater{connection: db, tableName: tableName, VersionIndex: version, schema: schema, Map: mp}
 }
 
@@ -36,12 +37,12 @@ func (w *Updater) Write(ctx context.Context, model interface{}) error {
 		if er0 != nil {
 			return er0
 		}
-		stm := BuildToUpdateWithVersion(w.tableName, m2, w.VersionIndex, w.schema)
+		stm := h.BuildToUpdateWithVersion(w.tableName, m2, w.VersionIndex, w.schema)
 		cursor := w.connection.Cursor()
 		cursor.Exec(ctx, stm)
 		return cursor.Err
 	}
-	stm := BuildToUpdateWithVersion(w.tableName, model, w.VersionIndex, w.schema)
+	stm := h.BuildToUpdateWithVersion(w.tableName, model, w.VersionIndex, w.schema)
 	cursor := w.connection.Cursor()
 	cursor.Exec(ctx, stm)
 	return cursor.Err

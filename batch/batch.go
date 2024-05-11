@@ -1,12 +1,14 @@
-package hive
+package batch
 
 import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	h "github.com/core-go/hive"
 )
 
-func BuildToSaveBatch(table string, models interface{}, options ...*Schema) (string, error){
+func BuildToSaveBatch(table string, models interface{}, options ...*h.Schema) (string, error) {
 	s := reflect.Indirect(reflect.ValueOf(models))
 	if s.Kind() != reflect.Slice {
 		return "", fmt.Errorf("models must be a slice")
@@ -15,7 +17,7 @@ func BuildToSaveBatch(table string, models interface{}, options ...*Schema) (str
 	if slen <= 0 {
 		return "", nil
 	}
-	var cols []*FieldDB
+	var cols []*h.FieldDB
 	// var schema map[string]FieldDB
 	if len(options) > 0 && options[0] != nil {
 		cols = options[0].Columns
@@ -23,7 +25,7 @@ func BuildToSaveBatch(table string, models interface{}, options ...*Schema) (str
 	} else {
 		first := s.Index(0).Interface()
 		modelType := reflect.TypeOf(first)
-		m := CreateSchema(modelType)
+		m := h.CreateSchema(modelType)
 		cols = m.Columns
 	}
 	placeholders := make([]string, 0)
@@ -54,7 +56,7 @@ func BuildToSaveBatch(table string, models interface{}, options ...*Schema) (str
 					values = append(values, "null")
 				} else {
 					icols = append(icols, fdb.Column)
-					v, ok := GetDBValue(fieldValue, fdb.Scale, fdb.LayoutTime)
+					v, ok := h.GetDBValue(fieldValue, fdb.Scale, fdb.LayoutTime)
 					if ok {
 						values = append(values, v)
 					}

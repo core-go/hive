@@ -1,8 +1,9 @@
-package hive
+package writer
 
 import (
 	"context"
 	hv "github.com/beltran/gohive"
+	h "github.com/core-go/hive"
 	"reflect"
 )
 
@@ -10,7 +11,7 @@ type HiveWriter struct {
 	connection   *hv.Connection
 	tableName    string
 	Map          func(ctx context.Context, model interface{}) (interface{}, error)
-	schema       *Schema
+	schema       *h.Schema
 	VersionIndex int
 }
 
@@ -19,7 +20,7 @@ func NewHiveWriterWithMap(connection *hv.Connection, tableName string, modelType
 	if len(options) > 0 && options[0] >= 0 {
 		versionIndex = options[0]
 	}
-	schema := CreateSchema(modelType)
+	schema := h.CreateSchema(modelType)
 	return &HiveWriter{connection: connection, tableName: tableName, Map: mp, schema: schema, VersionIndex: versionIndex}
 }
 
@@ -37,12 +38,12 @@ func (w *HiveWriter) Write(ctx context.Context, model interface{}) error {
 		if er0 != nil {
 			return er0
 		}
-		stm := BuildToInsertWithVersion(w.tableName, m2, w.VersionIndex, true, w.schema)
+		stm := h.BuildToInsertWithVersion(w.tableName, m2, w.VersionIndex, true, w.schema)
 		cursor := w.connection.Cursor()
 		cursor.Exec(ctx, stm)
 		return cursor.Err
 	}
-	stm := BuildToInsertWithVersion(w.tableName, model, w.VersionIndex, true, w.schema)
+	stm := h.BuildToInsertWithVersion(w.tableName, model, w.VersionIndex, true, w.schema)
 	cursor := w.connection.Cursor()
 	cursor.Exec(ctx, stm)
 	return cursor.Err
