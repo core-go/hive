@@ -50,29 +50,31 @@ type Exporter[T any] struct {
 	Close       func() error
 }
 
-func (s *Exporter[T]) Export(ctx context.Context) error {
+func (s *Exporter[T]) Export(ctx context.Context) (int64, error) {
 	query := s.BuildQuery(ctx)
 	cursor := s.Connection.Cursor()
 	defer s.Connection.Close()
 	cursor.Exec(ctx, query)
 	if cursor.Err != nil {
-		return cursor.Err
+		return 0, cursor.Err
 	}
 	return s.ScanAndWrite(ctx, cursor)
 }
 
-func (s *Exporter[T]) ScanAndWrite(ctx context.Context, cursor *hv.Cursor) error {
+func (s *Exporter[T]) ScanAndWrite(ctx context.Context, cursor *hv.Cursor) (int64, error) {
 	defer cursor.Close()
+	var i int64
+	i = 0
 	columns, mcols, er0 := h.GetColumns(cursor)
 	if er0 != nil {
-		return er0
+		return i, er0
 	}
 	for cursor.HasMore(ctx) {
 		var obj T
 		r, _ := h.StructScan(&obj, columns, s.fieldsIndex)
 		fieldPointers := cursor.RowMap(ctx)
 		if cursor.Err != nil {
-			return cursor.Err
+			return i, cursor.Err
 		}
 		for _, c := range columns {
 			if colm, ok := mcols[c]; ok {
@@ -82,7 +84,7 @@ func (s *Exporter[T]) ScanAndWrite(ctx context.Context, cursor *hv.Cursor) error
 						if fieldValue, ok := r[c]; ok && !h.IsZeroOfUnderlyingType(v) {
 							err1 := h.ConvertAssign(fieldValue, v)
 							if err1 != nil {
-								return err1
+								return i, err1
 							}
 						}
 					}
@@ -91,10 +93,11 @@ func (s *Exporter[T]) ScanAndWrite(ctx context.Context, cursor *hv.Cursor) error
 		}
 		err1 := s.TransformAndWrite(ctx, s.Write, &obj)
 		if err1 != nil {
-			return err1
+			return i, err1
 		}
+		i = i + 1
 	}
-	return nil
+	return i, nil
 }
 func (s *Exporter[T]) TransformAndWrite(ctx context.Context, write func(p []byte) (n int, err error), model *T) error {
 	line := s.Transform(ctx, model)
