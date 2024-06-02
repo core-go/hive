@@ -8,17 +8,22 @@ import (
 )
 
 func GetColumnIndexes(modelType reflect.Type) (map[string]int, error) {
-	ma := make(map[string]int, 0)
+	ma := make(map[string]int)
+	if modelType.Kind() == reflect.Ptr {
+		modelType = modelType.Elem()
+	}
 	if modelType.Kind() != reflect.Struct {
 		return ma, errors.New("bad type")
 	}
 	for i := 0; i < modelType.NumField(); i++ {
 		field := modelType.Field(i)
 		ormTag := field.Tag.Get("gorm")
-		column, ok := FindTag(ormTag, "column")
-		column = strings.ToLower(column)
-		if ok {
-			ma[column] = i
+		if ormTag != "-" {
+			column, ok := FindTag(ormTag, "column")
+			column = strings.ToLower(column)
+			if ok {
+				ma[column] = i
+			}
 		}
 	}
 	return ma, nil
