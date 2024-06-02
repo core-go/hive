@@ -44,28 +44,6 @@ func NewLoader(connection *hv.Connection, tableName string, modelType reflect.Ty
 	return &Loader{Connection: connection, Map: mp, modelType: modelType, modelsType: modelsType, keys: idNames, mapJsonColumnKeys: mapJsonColumnKeys, fieldsIndex: fieldsIndex, table: tableName}, nil
 }
 
-func (s *Loader) Keys() []string {
-	return s.keys
-}
-
-func (s *Loader) All(ctx context.Context) (interface{}, error) {
-	query := BuildSelectAllQuery(s.table)
-	result := reflect.New(s.modelsType).Interface()
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
-	cursor.Exec(ctx, query)
-	if cursor.Err != nil {
-		return nil, cursor.Err
-	}
-	err := Query(ctx, cursor, s.fieldsIndex, result, query)
-	if err == nil {
-		if s.Map != nil {
-			return MapModels(ctx, result, s.Map)
-		}
-	}
-	return result, err
-}
-
 func (s *Loader) Load(ctx context.Context, id interface{}) (interface{}, error) {
 	query := BuildFindById(s.table, id, s.mapJsonColumnKeys, s.keys)
 	cursor := s.Connection.Cursor()

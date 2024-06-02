@@ -7,55 +7,50 @@ import (
 	"reflect"
 )
 
-func NewExportRepository(db *hv.Connection, modelType reflect.Type,
+func NewExportAdapter[T any](connection *hv.Connection,
 	buildQuery func(context.Context) string,
-	transform func(context.Context, interface{}) string,
+	transform func(context.Context, *T) string,
 	write func(p []byte) (n int, err error),
 	close func() error,
-) (*Exporter, error) {
-	return NewExporter(db, modelType, buildQuery, transform, write, close)
+) (*Exporter[T], error) {
+	return NewExporter(connection, buildQuery, transform, write, close)
 }
-func NewExportAdapter(db *hv.Connection, modelType reflect.Type,
+func NewExportService[T any](connection *hv.Connection,
 	buildQuery func(context.Context) string,
-	transform func(context.Context, interface{}) string,
+	transform func(context.Context, *T) string,
 	write func(p []byte) (n int, err error),
 	close func() error,
-) (*Exporter, error) {
-	return NewExporter(db, modelType, buildQuery, transform, write, close)
+) (*Exporter[T], error) {
+	return NewExporter(connection, buildQuery, transform, write, close)
 }
-func NewExportService(db *hv.Connection, modelType reflect.Type,
+func NewExporter[T any](connection *hv.Connection,
 	buildQuery func(context.Context) string,
-	transform func(context.Context, interface{}) string,
+	transform func(context.Context, *T) string,
 	write func(p []byte) (n int, err error),
 	close func() error,
-) (*Exporter, error) {
-	return NewExporter(db, modelType, buildQuery, transform, write, close)
-}
-
-func NewExporter(db *hv.Connection, modelType reflect.Type,
-	buildQuery func(context.Context) string,
-	transform func(context.Context, interface{}) string,
-	write func(p []byte) (n int, err error),
-	close func() error,
-) (*Exporter, error) {
+) (*Exporter[T], error) {
+	var t T
+	modelType := reflect.TypeOf(t)
+	if modelType.Kind() == reflect.Ptr {
+		modelType = modelType.Elem()
+	}
 	fieldsIndex, err := h.GetColumnIndexes(modelType)
 	if err != nil {
 		return nil, err
 	}
-	return &Exporter{Connection: db, modelType: modelType, Write: write, Close: close, fieldsIndex: fieldsIndex, Transform: transform, BuildQuery: buildQuery}, nil
+	return &Exporter[T]{Connection: connection, Write: write, Close: close, fieldsIndex: fieldsIndex, Transform: transform, BuildQuery: buildQuery}, nil
 }
 
-type Exporter struct {
+type Exporter[T any] struct {
 	Connection  *hv.Connection
-	modelType   reflect.Type
 	fieldsIndex map[string]int
-	Transform   func(context.Context, interface{}) string
+	Transform   func(context.Context, *T) string
 	BuildQuery  func(context.Context) string
 	Write       func(p []byte) (n int, err error)
 	Close       func() error
 }
 
-func (s *Exporter) Export(ctx context.Context) error {
+func (s *Exporter[T]) Export(ctx context.Context) error {
 	query := s.BuildQuery(ctx)
 	cursor := s.Connection.Cursor()
 	defer s.Connection.Close()
@@ -63,18 +58,18 @@ func (s *Exporter) Export(ctx context.Context) error {
 	if cursor.Err != nil {
 		return cursor.Err
 	}
-	return s.ScanAndWrite(ctx, cursor, s.modelType)
+	return s.ScanAndWrite(ctx, cursor)
 }
 
-func (s *Exporter) ScanAndWrite(ctx context.Context, cursor *hv.Cursor, structType reflect.Type) error {
+func (s *Exporter[T]) ScanAndWrite(ctx context.Context, cursor *hv.Cursor) error {
 	defer cursor.Close()
 	columns, mcols, er0 := h.GetColumns(cursor)
 	if er0 != nil {
 		return er0
 	}
 	for cursor.HasMore(ctx) {
-		initModel := reflect.New(structType).Interface()
-		r, _ := h.StructScan(initModel, columns, s.fieldsIndex)
+		var obj T
+		r, _ := h.StructScan(&obj, columns, s.fieldsIndex)
 		fieldPointers := cursor.RowMap(ctx)
 		if cursor.Err != nil {
 			return cursor.Err
@@ -94,14 +89,14 @@ func (s *Exporter) ScanAndWrite(ctx context.Context, cursor *hv.Cursor, structTy
 				}
 			}
 		}
-		err1 := s.TransformAndWrite(ctx, s.Write, initModel)
+		err1 := s.TransformAndWrite(ctx, s.Write, &obj)
 		if err1 != nil {
 			return err1
 		}
 	}
 	return nil
 }
-func (s *Exporter) TransformAndWrite(ctx context.Context, write func(p []byte) (n int, err error), model interface{}) error {
+func (s *Exporter[T]) TransformAndWrite(ctx context.Context, write func(p []byte) (n int, err error), model *T) error {
 	line := s.Transform(ctx, model)
 	_, er := write([]byte(line))
 	return er

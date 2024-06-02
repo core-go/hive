@@ -8,12 +8,8 @@ import (
 	h "github.com/core-go/hive"
 )
 
-func BuildToSaveBatch(table string, models interface{}, options ...*h.Schema) (string, error) {
-	s := reflect.Indirect(reflect.ValueOf(models))
-	if s.Kind() != reflect.Slice {
-		return "", fmt.Errorf("models must be a slice")
-	}
-	slen := s.Len()
+func BuildToSaveBatch[T any](table string, models []T, options ...*h.Schema) (string, error) {
+	slen := len(models)
 	if slen <= 0 {
 		return "", nil
 	}
@@ -23,8 +19,11 @@ func BuildToSaveBatch(table string, models interface{}, options ...*h.Schema) (s
 		cols = options[0].Columns
 		// schema = options[0].Fields
 	} else {
-		first := s.Index(0).Interface()
-		modelType := reflect.TypeOf(first)
+		var t T
+		modelType := reflect.TypeOf(t)
+		if modelType.Kind() == reflect.Ptr {
+			modelType = modelType.Elem()
+		}
 		m := h.CreateSchema(modelType)
 		cols = m.Columns
 	}
@@ -36,7 +35,7 @@ func BuildToSaveBatch(table string, models interface{}, options ...*h.Schema) (s
 		}
 	}
 	for j := 0; j < slen; j++ {
-		model := s.Index(j).Interface()
+		model := models[j]
 		mv := reflect.ValueOf(model)
 		values := make([]string, 0)
 		for _, fdb := range cols {
