@@ -26,7 +26,12 @@ func WrapString(v string) string {
 	}
 	return join(`'`, v, `'`)
 }
-
+func Escape(v string) string {
+	if strings.Index(v, `'`) >= 0 {
+		return strings.Replace(v, "'", "''", -1)
+	}
+	return v
+}
 func GetDBValue(v interface{}, scale int8, layoutTime string) (string, bool) {
 	switch v.(type) {
 	case string:

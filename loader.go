@@ -45,7 +45,8 @@ func NewLoader(connection *hv.Connection, tableName string, modelType reflect.Ty
 }
 
 func (s *Loader) Load(ctx context.Context, id interface{}) (interface{}, error) {
-	query := BuildFindById(s.table, id, s.mapJsonColumnKeys, s.keys)
+	queryAll := fmt.Sprintf("select * from %s ", s.table)
+	query := BuildFindById(queryAll, id, s.mapJsonColumnKeys, s.keys)
 	cursor := s.Connection.Cursor()
 	defer cursor.Close()
 	cursor.Exec(ctx, query)
@@ -68,7 +69,8 @@ func (s *Loader) Load(ctx context.Context, id interface{}) (interface{}, error) 
 }
 
 func (s *Loader) Get(ctx context.Context, id interface{}, result interface{}) (bool, error) {
-	query := BuildFindById(s.table, id, s.mapJsonColumnKeys, s.keys)
+	queryAll := fmt.Sprintf("select * from %s ", s.table)
+	query := BuildFindById(queryAll, id, s.mapJsonColumnKeys, s.keys)
 	cursor := s.Connection.Cursor()
 	defer cursor.Close()
 	cursor.Exec(ctx, query)
@@ -111,12 +113,18 @@ func (s *Loader) LoadAndDecode(ctx context.Context, id interface{}, result inter
 }
 
 func (s *Loader) Exist(ctx context.Context, id interface{}) (bool, error) {
-	v, err := s.Load(ctx, id)
-	if err != nil {
-		return false, err
+	queryAll := fmt.Sprintf("select * from %s ", s.table)
+	query := BuildFindById(queryAll, id, s.mapJsonColumnKeys, s.keys)
+	cursor := s.Connection.Cursor()
+	defer cursor.Close()
+	cursor.Exec(ctx, query)
+	if cursor.Err != nil {
+		return false, cursor.Err
 	}
-	ok := IsNil(v)
-	return ok, nil
+	for cursor.HasMore(ctx) {
+		return true, nil
+	}
+	return false, nil
 }
 
 func FindPrimaryKeys(modelType reflect.Type) ([]string, []string) {
@@ -191,10 +199,10 @@ func MapJsonColumn(modelType reflect.Type) map[string]string {
 }
 
 func BuildSelectAllQuery(table string) string {
-	return fmt.Sprintf("select * from %v", table)
+	return fmt.Sprintf("select * from %s", table)
 }
 
-func BuildFindById(table string, id interface{}, mapJsonColumnKeys map[string]string, keys []string) string {
+func BuildFindById(selectAll string, id interface{}, mapJsonColumnKeys map[string]string, keys []string) string {
 	var where = ""
 	if len(keys) == 1 {
 		v, _ := GetDBValue(id, 0, "")
@@ -212,7 +220,7 @@ func BuildFindById(table string, id interface{}, mapJsonColumnKeys map[string]st
 			where = "where " + strings.Join(conditions, " and ")
 		}
 	}
-	return fmt.Sprintf("select * from %v %v", table, where)
+	return fmt.Sprintf("%s %v", selectAll, where)
 }
 func IsNil(i interface{}) bool {
 	if i == nil {

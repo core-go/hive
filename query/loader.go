@@ -2,9 +2,13 @@ package query
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+
 	hv "github.com/beltran/gohive"
 	h "github.com/core-go/hive"
-	"reflect"
 )
 
 type Loader[T any, K any] struct {
@@ -14,6 +18,7 @@ type Loader[T any, K any] struct {
 	JsonColumnMap map[string]string
 	Map           map[string]int
 	Table         string
+	IdMap         bool
 }
 
 func NewLoader[T any, K any](connection *hv.Connection, tableName string, options ...func(context.Context, interface{}) (interface{}, error)) (*Loader[T, K], error) {
@@ -22,7 +27,19 @@ func NewLoader[T any, K any](connection *hv.Connection, tableName string, option
 	if modelType.Kind() == reflect.Ptr {
 		modelType = modelType.Elem()
 	}
-	_, idNames := h.FindPrimaryKeys(modelType)
+
+	_, primaryKeys := h.FindPrimaryKeys(modelType)
+	var k K
+	kType := reflect.TypeOf(k)
+	idMap := false
+	if len(primaryKeys) > 1 {
+		if kType.Kind() == reflect.Map {
+			idMap = true
+		} else if kType.Kind() != reflect.Struct {
+			return nil, errors.New("for composite keys, K must be a struct or a map")
+		}
+	}
+
 	mapJsonColumnKeys := h.MapJsonColumn(modelType)
 
 	fieldsIndex, er0 := h.GetColumnIndexes(modelType)
@@ -33,7 +50,7 @@ func NewLoader[T any, K any](connection *hv.Connection, tableName string, option
 	if len(options) > 0 {
 		mp = options[0]
 	}
-	return &Loader[T, K]{Connection: connection, Mp: mp, keys: idNames, JsonColumnMap: mapJsonColumnKeys, Map: fieldsIndex, Table: tableName}, nil
+	return &Loader[T, K]{Connection: connection, Mp: mp, keys: primaryKeys, JsonColumnMap: mapJsonColumnKeys, Map: fieldsIndex, Table: tableName, IdMap: idMap}, nil
 }
 
 func (s *Loader[T, K]) All(ctx context.Context) ([]T, error) {
@@ -53,8 +70,30 @@ func (s *Loader[T, K]) All(ctx context.Context) ([]T, error) {
 	}
 	return res, err
 }
+func toMap(obj interface{}) (map[string]interface{}, error) {
+	b, err := json.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+	im := make(map[string]interface{})
+	er2 := json.Unmarshal(b, &im)
+	return im, er2
+}
+func (s *Loader[T, K]) getId(k K) (interface{}, error) {
+	if len(s.keys) >= 2 && !s.IdMap {
+		ri, err := toMap(k)
+		return ri, err
+	} else {
+		return k, nil
+	}
+}
 func (s *Loader[T, K]) Load(ctx context.Context, id K) (*T, error) {
-	query := h.BuildFindById(s.Table, id, s.JsonColumnMap, s.keys)
+	ip, er0 := s.getId(id)
+	if er0 != nil {
+		return nil, er0
+	}
+	queryAll := fmt.Sprintf("select * from %s ", s.Table)
+	query := h.BuildFindById(queryAll, ip, s.JsonColumnMap, s.keys)
 	cursor := s.Connection.Cursor()
 	defer cursor.Close()
 	cursor.Exec(ctx, query)
@@ -72,7 +111,12 @@ func (s *Loader[T, K]) Load(ctx context.Context, id K) (*T, error) {
 	return nil, nil
 }
 func (s *Loader[T, K]) Exist(ctx context.Context, id K) (bool, error) {
-	query := h.BuildFindById(s.Table, id, s.JsonColumnMap, s.keys)
+	ip, er0 := s.getId(id)
+	if er0 != nil {
+		return false, er0
+	}
+	queryAll := fmt.Sprintf("select * from %s ", s.Table)
+	query := h.BuildFindById(queryAll, ip, s.JsonColumnMap, s.keys)
 	cursor := s.Connection.Cursor()
 	defer cursor.Close()
 	cursor.Exec(ctx, query)

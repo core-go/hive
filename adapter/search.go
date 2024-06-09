@@ -1,4 +1,4 @@
-package query
+package adapter
 
 import (
 	"context"
@@ -7,20 +7,21 @@ import (
 )
 
 type SearchAdapter[T any, K any, F any] struct {
-	*Adapter[T, K]
+	*GenericAdapter[T, K]
 	BuildQuery func(F) string
+	Mp         func(ctx context.Context, model interface{}) (interface{}, error)
 }
 
-func NewQuery[T any, K any, F any](connection *hv.Connection, tableName string, buildQuery func(F) string, options ...func(context.Context, interface{}) (interface{}, error)) (*SearchAdapter[T, K, F], error) {
+func NewSearchAdapterWithVersion[T any, K any, F any](connection *hv.Connection, tableName string, buildQuery func(F) string, versionField string, options ...func(context.Context, interface{}) (interface{}, error)) (*SearchAdapter[T, K, F], error) {
 	var mp func(context.Context, interface{}) (interface{}, error)
 	if len(options) >= 1 {
 		mp = options[0]
 	}
-	loader, err := NewAdapter[T, K](connection, tableName, mp)
+	adapter, err := NewGenericAdapterWithVersion[T, K](connection, tableName, versionField)
 	if err != nil {
 		return nil, err
 	}
-	builder := &SearchAdapter[T, K, F]{Adapter: loader, BuildQuery: buildQuery}
+	builder := &SearchAdapter[T, K, F]{GenericAdapter: adapter, BuildQuery: buildQuery, Mp: mp}
 	return builder, nil
 }
 

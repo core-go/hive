@@ -3,7 +3,6 @@ package export
 import (
 	"context"
 	hv "github.com/beltran/gohive"
-	h "github.com/core-go/hive"
 	"reflect"
 )
 
@@ -34,7 +33,7 @@ func NewExporter[T any](connection *hv.Connection,
 	if modelType.Kind() == reflect.Ptr {
 		modelType = modelType.Elem()
 	}
-	fieldsIndex, err := h.GetColumnIndexes(modelType)
+	fieldsIndex, err := GetColumnIndexes(modelType)
 	if err != nil {
 		return nil, err
 	}
@@ -65,13 +64,13 @@ func (s *Exporter[T]) ScanAndWrite(ctx context.Context, cursor *hv.Cursor) (int6
 	defer cursor.Close()
 	var i int64
 	i = 0
-	columns, mcols, er0 := h.GetColumns(cursor)
+	columns, mcols, er0 := GetColumns(cursor)
 	if er0 != nil {
 		return i, er0
 	}
 	for cursor.HasMore(ctx) {
 		var obj T
-		r, _ := h.StructScan(&obj, columns, s.fieldsIndex)
+		r, _ := StructScan(&obj, columns, s.fieldsIndex)
 		fieldPointers := cursor.RowMap(ctx)
 		if cursor.Err != nil {
 			return i, cursor.Err
@@ -81,8 +80,8 @@ func (s *Exporter[T]) ScanAndWrite(ctx context.Context, cursor *hv.Cursor) (int6
 				if v, ok := fieldPointers[colm]; ok {
 					if v != nil {
 						v = reflect.Indirect(reflect.ValueOf(v)).Interface()
-						if fieldValue, ok := r[c]; ok && !h.IsZeroOfUnderlyingType(v) {
-							err1 := h.ConvertAssign(fieldValue, v)
+						if fieldValue, ok := r[c]; ok && !IsZeroOfUnderlyingType(v) {
+							err1 := ConvertAssign(fieldValue, v)
 							if err1 != nil {
 								return i, err1
 							}

@@ -151,21 +151,19 @@ func MapToDB(model *map[string]interface{}, modelType reflect.Type) {
 	}
 }
 func (s *Writer) Delete(ctx context.Context, id interface{}) (int64, error) {
-	query := BuildQueryById(id, s.modelType, s.keys[0])
-	sql := BuildToDelete(s.table, query)
+	queryAll := fmt.Sprintf("delete from %s ", s.table)
+	sql := BuildFindById(queryAll, id, s.mapJsonColumnKeys, s.keys)
 	cursor := s.Connection.Cursor()
 	defer cursor.Close()
 	cursor.Exec(ctx, sql)
 	return 1, cursor.Err
 }
+
 type Mapper interface {
 	DbToModel(ctx context.Context, model interface{}) (interface{}, error)
 	ModelToDb(ctx context.Context, model interface{}) (interface{}, error)
 }
-func BuildQueryById(id interface{}, modelType reflect.Type, idName string) (query map[string]interface{}) {
-	columnName, _ := GetColumnName(modelType, idName)
-	return map[string]interface{}{columnName: id}
-}
+
 func GetColumnName(modelType reflect.Type, jsonName string) (col string, colExist bool) {
 	index := GetIndexByTag("json", jsonName, modelType)
 	if index == -1 {

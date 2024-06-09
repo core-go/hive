@@ -1,86 +1,85 @@
-package query
+package adapter
 
 import (
 	"context"
 	hv "github.com/beltran/gohive"
 	h "github.com/core-go/hive"
 	"reflect"
+	"strings"
 )
 
-type Adapter[T any, K any] struct {
-	Connection    *hv.Connection
-	Mp            func(ctx context.Context, model interface{}) (interface{}, error)
-	keys          []string
-	JsonColumnMap map[string]string
-	Map           map[string]int
-	Table         string
+type Adapter[T any] struct {
+	Connection *hv.Connection
+	Table      string
+	// Keys           []string
+	Schema         *h.Schema
+	JsonColumnMap  map[string]string
+	versionIndex   int
+	versionDBField string
 }
 
-func NewAdapter[T any, K any](connection *hv.Connection, tableName string, options ...func(context.Context, interface{}) (interface{}, error)) (*Adapter[T, K], error) {
+func NewAdapter[T any](connection *hv.Connection, tableName string) *Adapter[T] {
+	return NewAdapterWithVersion[T](connection, tableName, "")
+}
+func NewAdapterWithVersion[T any](connection *hv.Connection, tableName string, versionField string) *Adapter[T] {
 	var t T
 	modelType := reflect.TypeOf(t)
 	if modelType.Kind() == reflect.Ptr {
 		modelType = modelType.Elem()
 	}
-	_, idNames := h.FindPrimaryKeys(modelType)
+	// _, idNames := h.FindPrimaryKeys(modelType)
 	mapJsonColumnKeys := h.MapJsonColumn(modelType)
+	schema := h.CreateSchema(modelType)
 
-	fieldsIndex, er0 := h.GetColumnIndexes(modelType)
-	if er0 != nil {
-		return nil, er0
-	}
-	var mp func(context.Context, interface{}) (interface{}, error)
-	if len(options) > 0 {
-		mp = options[0]
-	}
-	return &Adapter[T, K]{Connection: connection, Mp: mp, keys: idNames, JsonColumnMap: mapJsonColumnKeys, Map: fieldsIndex, Table: tableName}, nil
-}
-
-func (s *Adapter[T, K]) All(ctx context.Context) ([]T, error) {
-	query := h.BuildSelectAllQuery(s.Table)
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
-	cursor.Exec(ctx, query)
-	if cursor.Err != nil {
-		return nil, cursor.Err
-	}
-	var res []T
-	err := h.Query(ctx, cursor, s.Map, &res, query)
-	if err == nil {
-		if s.Mp != nil {
-			h.MapModels(ctx, &res, s.Mp)
+	adapter := &Adapter[T]{Connection: connection, Table: tableName, Schema: schema, JsonColumnMap: mapJsonColumnKeys}
+	if len(versionField) > 0 {
+		index := h.FindFieldIndex(modelType, versionField)
+		if index >= 0 {
+			_, dbFieldName, exist := h.GetFieldByIndex(modelType, index)
+			if !exist {
+				dbFieldName = strings.ToLower(versionField)
+			}
+			adapter.versionIndex = index
+			adapter.versionDBField = dbFieldName
 		}
 	}
-	return res, err
+	return adapter
 }
-func (s *Adapter[T, K]) Load(ctx context.Context, id K) (*T, error) {
-	query := h.BuildFindById(s.Table, id, s.JsonColumnMap, s.keys)
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
+
+func (a *Adapter[T]) Create(ctx context.Context, model T) (int64, error) {
+	query := h.BuildToInsertWithVersion(a.Table, model, a.versionIndex, false, a.Schema)
+	cursor := a.Connection.Cursor()
 	cursor.Exec(ctx, query)
 	if cursor.Err != nil {
-		return nil, cursor.Err
+		return -1, cursor.Err
 	}
-	var res []T
-	err := h.Query(ctx, cursor, s.Map, &res, query)
-	if err != nil {
-		return nil, err
-	}
-	if len(res) > 0 {
-		return &res[0], nil
-	}
-	return nil, nil
+	return 1, nil
 }
-func (s *Adapter[T, K]) Exist(ctx context.Context, id K) (bool, error) {
-	query := h.BuildFindById(s.Table, id, s.JsonColumnMap, s.keys)
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
+func (a *Adapter[T]) Update(ctx context.Context, model T) (int64, error) {
+	query := h.BuildToUpdateWithVersion(a.Table, model, a.versionIndex, a.Schema)
+	cursor := a.Connection.Cursor()
 	cursor.Exec(ctx, query)
 	if cursor.Err != nil {
-		return false, cursor.Err
+		return -1, cursor.Err
 	}
-	for cursor.HasMore(ctx) {
-		return true, nil
+	return 1, nil
+}
+func (a *Adapter[T]) Patch(ctx context.Context, model map[string]interface{}) (int64, error) {
+	colMap := h.JSONToColumns(model, a.JsonColumnMap)
+	query := h.BuildToPatchWithVersion(a.Table, colMap, a.Schema.SKeys, a.versionDBField)
+	cursor := a.Connection.Cursor()
+	cursor.Exec(ctx, query)
+	if cursor.Err != nil {
+		return -1, cursor.Err
 	}
-	return false, nil
+	return 1, nil
+}
+func (a *Adapter[T]) Save(ctx context.Context, model T) (int64, error) {
+	query := h.BuildToInsertWithVersion(a.Table, model, a.versionIndex, false, a.Schema)
+	cursor := a.Connection.Cursor()
+	cursor.Exec(ctx, query)
+	if cursor.Err != nil {
+		return -1, cursor.Err
+	}
+	return 1, nil
 }

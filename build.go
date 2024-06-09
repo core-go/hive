@@ -134,14 +134,3 @@ func BuildToUpdateWithVersion(table string, model interface{}, versionIndex int,
 	query := fmt.Sprintf("update %v set %v where %v", table, strings.Join(values, ","), strings.Join(where, " and "))
 	return query
 }
-func BuildToDelete(table string, ids map[string]interface{}) string {
-	var queryArr []string
-	for col, value := range ids {
-		v, ok := GetDBValue(value, 0, "")
-		if ok {
-			queryArr = append(queryArr, col+"="+v)
-		}
-	}
-	q := strings.Join(queryArr, " and ")
-	return fmt.Sprintf("delete from %v where %v", table, q)
-}
