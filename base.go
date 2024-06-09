@@ -33,6 +33,12 @@ func Escape(v string) string {
 	}
 	return v
 }
+func GetString(s *string) string {
+	if s == nil {
+		return "null"
+	}
+	return Escape(*s)
+}
 func FormatDate(d time.Time) string {
 	return d.Format(t4)
 }
