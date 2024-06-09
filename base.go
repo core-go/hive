@@ -11,6 +11,7 @@ import (
 )
 
 const t0 = "2006-01-02 15:04:05"
+const t4 = "2006-01-02"
 
 func join(strs ...string) string {
 	var sb strings.Builder
@@ -31,6 +32,53 @@ func Escape(v string) string {
 		return strings.Replace(v, "'", "''", -1)
 	}
 	return v
+}
+func FormatDate(d time.Time) string {
+	return d.Format(t4)
+}
+func GetDate(d *time.Time) string {
+	if d == nil {
+		return "null"
+	}
+	return "'" + d.Format(t4) + "'"
+}
+func FormatDateTime(d time.Time) string {
+	return d.Format(t0)
+}
+func GetDateTime(d *time.Time) string {
+	if d == nil {
+		return "null"
+	}
+	return "'" + d.Format(t0) + "'"
+}
+func GetInt64(d *int64) string {
+	if d == nil {
+		return "null"
+	}
+	return strconv.FormatInt(*d, 10)
+}
+func GetInt32(d *int32) string {
+	if d == nil {
+		return "null"
+	}
+	return strconv.FormatInt(int64(*d), 10)
+}
+func GetInt(d *int) string {
+	if d == nil {
+		return "null"
+	}
+	return strconv.FormatInt(int64(*d), 10)
+}
+func GetFloat64(d *float64, scale int) string {
+	if d == nil {
+		return "null"
+	}
+	if scale >= 0 {
+		mt := "%." + strconv.Itoa(scale) + "f"
+		return fmt.Sprintf(mt, *d)
+	} else {
+		return fmt.Sprintf("'%f'", *d)
+	}
 }
 func GetDBValue(v interface{}, scale int8, layoutTime string) (string, bool) {
 	switch v.(type) {
@@ -68,10 +116,10 @@ func GetDBValue(v interface{}, scale int8, layoutTime string) (string, bool) {
 		tf := v.(time.Time)
 		if len(layoutTime) > 0 {
 			f := tf.Format(layoutTime)
-			return WrapString(f), true
+			return "'" + f + "'", true
 		}
 		f := tf.Format(t0)
-		return WrapString(f), true
+		return "'" + f + "'", true
 	case big.Float:
 		n1 := v.(big.Float)
 		if scale >= 0 {

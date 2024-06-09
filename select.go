@@ -7,7 +7,7 @@ import (
 )
 
 func GetIndexesByTagJson(modelType reflect.Type) (map[string]int, error) {
-	ma := make(map[string]int, 0)
+	ma := make(map[string]int)
 	if modelType.Kind() != reflect.Struct {
 		return ma, errors.New("bad type")
 	}
