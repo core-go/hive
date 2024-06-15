@@ -17,12 +17,12 @@ import (
 
 var errNilPtr = errors.New("destination pointer is nil") // embedded in descriptive error
 const (
-	lt0 = "2006-01-02 15:04:05"
-	lt1 = "2006-01-02T15:04:05Z"
-	lt2 = "2006-01-02T15:04:05-0700"
-	lt3 = "2006-01-02T15:04:05.0000000-0700"
+	TimeFormat = "2006-01-02 15:04:05"
+	lt1        = "2006-01-02T15:04:05Z"
+	lt2        = "2006-01-02T15:04:05-0700"
+	lt3        = "2006-01-02T15:04:05.0000000-0700"
 
-	s0 = len(lt0)
+	s0 = len(TimeFormat)
 	s1 = len(lt1)
 	s2 = len(lt2)
 	s3 = len(lt3)
@@ -57,7 +57,7 @@ func convertAssignRows(dest, src interface{}) error {
 			return nil
 		case *time.Time:
 			if len(s) > 0 {
-				t, err := time.Parse(lt0, s)
+				t, err := time.Parse(TimeFormat, s)
 				if err == nil {
 					*d = t
 				}

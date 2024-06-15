@@ -37,6 +37,9 @@ func BuildToSaveBatch[T any](table string, models []T, options ...*h.Schema) (st
 	for j := 0; j < slen; j++ {
 		model := models[j]
 		mv := reflect.ValueOf(model)
+		if mv.Kind() == reflect.Ptr {
+			mv = mv.Elem()
+		}
 		values := make([]string, 0)
 		for _, fdb := range cols {
 			if fdb.Insert {
@@ -51,10 +54,8 @@ func BuildToSaveBatch[T any](table string, models []T, options ...*h.Schema) (st
 					}
 				}
 				if isNil {
-					icols = append(icols, fdb.Column)
 					values = append(values, "null")
 				} else {
-					icols = append(icols, fdb.Column)
 					v, ok := h.GetDBValue(fieldValue, fdb.Scale, fdb.LayoutTime)
 					if ok {
 						values = append(values, v)

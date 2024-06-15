@@ -37,7 +37,17 @@ func GetString(s *string) string {
 	if s == nil {
 		return "null"
 	}
-	return Escape(*s)
+	return "'" + Escape(*s) + "'"
+}
+func GetTime(s *string) (*time.Time, error) {
+	if s == nil {
+		return nil, nil
+	}
+	d, err := time.Parse(TimeFormat, *s)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
 }
 func FormatDate(d time.Time) string {
 	return d.Format(t4)

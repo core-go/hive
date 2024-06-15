@@ -31,7 +31,7 @@ func NewAdapterWithVersion[T any](connection *hv.Connection, tableName string, v
 	mapJsonColumnKeys := h.MapJsonColumn(modelType)
 	schema := h.CreateSchema(modelType)
 
-	adapter := &Adapter[T]{Connection: connection, Table: tableName, Schema: schema, JsonColumnMap: mapJsonColumnKeys}
+	adapter := &Adapter[T]{Connection: connection, Table: tableName, Schema: schema, JsonColumnMap: mapJsonColumnKeys, versionIndex: -1}
 	if len(versionField) > 0 {
 		index := h.FindFieldIndex(modelType, versionField)
 		if index >= 0 {

@@ -51,6 +51,9 @@ func (w *StreamWriter[T]) Flush(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		w.batch = make([]T, 0)
+	}()
 	cursor := w.connection.Cursor()
 	cursor.Exec(ctx, query)
 	return cursor.Err
