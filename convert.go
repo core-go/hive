@@ -16,17 +16,7 @@ import (
 )
 
 var errNilPtr = errors.New("destination pointer is nil") // embedded in descriptive error
-const (
-	TimeFormat = "2006-01-02 15:04:05"
-	lt1        = "2006-01-02T15:04:05Z"
-	lt2        = "2006-01-02T15:04:05-0700"
-	lt3        = "2006-01-02T15:04:05.0000000-0700"
-
-	s0 = len(TimeFormat)
-	s1 = len(lt1)
-	s2 = len(lt2)
-	s3 = len(lt3)
-)
+const TimeFormat = "2006-01-02 15:04:05"
 
 // convertAssign is the same as convertAssignRows, but without the optional
 // rows argument.
@@ -312,18 +302,3 @@ func asBytes(buf []byte, rv reflect.Value) (b []byte, ok bool) {
 	}
 	return
 }
-
-//
-//func getLayoutTime(s string) string {
-//	switch len(s) {
-//	case s0:
-//		return lt0
-//	case s1:
-//		return lt1
-//	case s2:
-//		return lt2
-//	case s3:
-//		return lt3
-//	}
-//	return time.RFC3339Nano
-//}

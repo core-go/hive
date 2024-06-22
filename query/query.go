@@ -11,8 +11,8 @@ type Query[T any, K any, F any] struct {
 	BuildQuery func(F) string
 }
 
-func NewQuery[T any, K any, F any](connection *hv.Connection, tableName string, buildQuery func(F) string, options ...func(context.Context, interface{}) (interface{}, error)) (*Query[T, K, F], error) {
-	var mp func(context.Context, interface{}) (interface{}, error)
+func NewQuery[T any, K any, F any](connection *hv.Connection, tableName string, buildQuery func(F) string, options ...func(*T)) (*Query[T, K, F], error) {
+	var mp func(*T)
 	if len(options) >= 1 {
 		mp = options[0]
 	}
@@ -51,8 +51,10 @@ func (b *Query[T, K, F]) Search(ctx context.Context, filter F, limit int64, offs
 		}
 	}
 	if b.Mp != nil {
-		_, err := h.MapModels(ctx, &res, b.Mp)
-		return res, count, err
+		l := len(res)
+		for i := 0; i < l; i++ {
+			b.Mp(&res[i])
+		}
 	}
 	return res, count, err
 }

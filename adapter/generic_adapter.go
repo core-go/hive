@@ -23,8 +23,8 @@ func NewGenericAdapterWithVersion[T any, K any](connection *hv.Connection, table
 	adapter := NewAdapterWithVersion[*T](connection, tableName, versionField)
 	var t T
 	modelType := reflect.TypeOf(t)
-	if modelType.Kind() == reflect.Ptr {
-		modelType = modelType.Elem()
+	if modelType.Kind() != reflect.Struct {
+		return nil, errors.New("T must be a struct")
 	}
 
 	_, primaryKeys := h.FindPrimaryKeys(modelType)

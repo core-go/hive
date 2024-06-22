@@ -10,14 +10,14 @@ import (
 type StreamWriter[T any] struct {
 	connection *hv.Connection
 	tableName  string
-	Map        func(ctx context.Context, model interface{}) (interface{}, error)
+	Map        func(T)
 	schema     *h.Schema
 	batchSize  int
 	batch      []T
 }
 
-func NewStreamWriter[T any](connection *hv.Connection, tableName string, batchSize int, options ...func(context.Context, interface{}) (interface{}, error)) *StreamWriter[T] {
-	var mp func(context.Context, interface{}) (interface{}, error)
+func NewStreamWriter[T any](connection *hv.Connection, tableName string, batchSize int, options ...func(T)) *StreamWriter[T] {
+	var mp func(T)
 	if len(options) >= 1 {
 		mp = options[0]
 	}
@@ -32,14 +32,9 @@ func NewStreamWriter[T any](connection *hv.Connection, tableName string, batchSi
 
 func (w *StreamWriter[T]) Write(ctx context.Context, model T) error {
 	if w.Map != nil {
-		m2, er0 := w.Map(ctx, model)
-		if er0 != nil {
-			return er0
-		}
-		w.batch = append(w.batch, m2.(T))
-	} else {
-		w.batch = append(w.batch, model)
+		w.Map(model)
 	}
+	w.batch = append(w.batch, model)
 	if len(w.batch) >= w.batchSize {
 		return w.Flush(ctx)
 	}

@@ -9,11 +9,14 @@ import (
 type SearchAdapter[T any, K any, F any] struct {
 	*GenericAdapter[T, K]
 	BuildQuery func(F) string
-	Mp         func(ctx context.Context, model interface{}) (interface{}, error)
+	Mp         func(*T)
 }
 
-func NewSearchAdapterWithVersion[T any, K any, F any](connection *hv.Connection, tableName string, buildQuery func(F) string, versionField string, options ...func(context.Context, interface{}) (interface{}, error)) (*SearchAdapter[T, K, F], error) {
-	var mp func(context.Context, interface{}) (interface{}, error)
+func NewSearchAdapter[T any, K any, F any](connection *hv.Connection, tableName string, buildQuery func(F) string, options ...func(*T)) (*SearchAdapter[T, K, F], error) {
+	return NewSearchAdapterWithVersion[T, K, F](connection, tableName, buildQuery, "", options...)
+}
+func NewSearchAdapterWithVersion[T any, K any, F any](connection *hv.Connection, tableName string, buildQuery func(F) string, versionField string, options ...func(*T)) (*SearchAdapter[T, K, F], error) {
+	var mp func(*T)
 	if len(options) >= 1 {
 		mp = options[0]
 	}
@@ -52,8 +55,10 @@ func (b *SearchAdapter[T, K, F]) Search(ctx context.Context, filter F, limit int
 		}
 	}
 	if b.Mp != nil {
-		_, err := h.MapModels(ctx, &res, b.Mp)
-		return res, count, err
+		l := len(res)
+		for i := 0; i < l; i++ {
+			b.Mp(&res[i])
+		}
 	}
 	return res, count, err
 }

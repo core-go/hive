@@ -39,11 +39,31 @@ func GetString(s *string) string {
 	}
 	return "'" + Escape(*s) + "'"
 }
-func GetTime(s *string) (*time.Time, error) {
-	if s == nil {
+func GetTime(s string) *time.Time {
+	if len(s) == 0 {
+		return nil
+	}
+	d, err := time.Parse(TimeFormat, s)
+	if err != nil {
+		return nil
+	}
+	return &d
+}
+func GetTimeWithLayout(s string, layout string) (*time.Time, error) {
+	if len(s) == 0 {
 		return nil, nil
 	}
-	d, err := time.Parse(TimeFormat, *s)
+	d, err := time.Parse(layout, s)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+func GetTimeWithError(s string) (*time.Time, error) {
+	if len(s) == 0 {
+		return nil, nil
+	}
+	d, err := time.Parse(TimeFormat, s)
 	if err != nil {
 		return nil, err
 	}

@@ -13,7 +13,7 @@ import (
 
 type Loader[T any, K any] struct {
 	Connection    *hv.Connection
-	Mp            func(ctx context.Context, model interface{}) (interface{}, error)
+	Mp            func(*T)
 	keys          []string
 	JsonColumnMap map[string]string
 	Map           map[string]int
@@ -21,11 +21,11 @@ type Loader[T any, K any] struct {
 	IdMap         bool
 }
 
-func NewLoader[T any, K any](connection *hv.Connection, tableName string, options ...func(context.Context, interface{}) (interface{}, error)) (*Loader[T, K], error) {
+func NewLoader[T any, K any](connection *hv.Connection, tableName string, options ...func(*T)) (*Loader[T, K], error) {
 	var t T
 	modelType := reflect.TypeOf(t)
-	if modelType.Kind() == reflect.Ptr {
-		modelType = modelType.Elem()
+	if modelType.Kind() != reflect.Struct {
+		return nil, errors.New("T must be a struct")
 	}
 
 	_, primaryKeys := h.FindPrimaryKeys(modelType)
@@ -46,7 +46,7 @@ func NewLoader[T any, K any](connection *hv.Connection, tableName string, option
 	if er0 != nil {
 		return nil, er0
 	}
-	var mp func(context.Context, interface{}) (interface{}, error)
+	var mp func(*T)
 	if len(options) > 0 {
 		mp = options[0]
 	}
@@ -65,7 +65,10 @@ func (s *Loader[T, K]) All(ctx context.Context) ([]T, error) {
 	err := h.Query(ctx, cursor, s.Map, &res, query)
 	if err == nil {
 		if s.Mp != nil {
-			h.MapModels(ctx, &res, s.Mp)
+			l := len(res)
+			for i := 0; i < l; i++ {
+				s.Mp(&res[i])
+			}
 		}
 	}
 	return res, err
@@ -106,6 +109,9 @@ func (s *Loader[T, K]) Load(ctx context.Context, id K) (*T, error) {
 		return nil, err
 	}
 	if len(res) > 0 {
+		if s.Mp != nil {
+			s.Mp(&res[0])
+		}
 		return &res[0], nil
 	}
 	return nil, nil
