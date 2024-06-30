@@ -39,7 +39,3 @@ func GetFields(modelType reflect.Type) []string {
 	}
 	return columns
 }
-func BuildQuery(table string, modelType reflect.Type) string {
-	columns := GetFields(modelType)
-	return "select " + strings.Join(columns, ",") + " from " + table + " "
-}

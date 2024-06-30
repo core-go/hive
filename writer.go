@@ -1,9 +1,7 @@
 package hive
 
 import (
-	"context"
 	"fmt"
-	hv "github.com/beltran/gohive"
 	"reflect"
 	"strconv"
 	"strings"
@@ -17,187 +15,11 @@ func Init(modelType reflect.Type) (map[string]int, *Schema, map[string]string, [
 	schema := CreateSchema(modelType)
 	fields := BuildFieldsBySchema(schema)
 	jsonColumnMap := MakeJsonColumnMap(modelType)
+	jm := GetWritableColumns(schema.Fields, jsonColumnMap)
 	keys, arr := FindPrimaryKeys(modelType)
-	return fieldsIndex, schema, jsonColumnMap, keys, arr, fields, nil
+	return fieldsIndex, schema, jm, keys, arr, fields, nil
 }
 
-type Writer struct {
-	*Loader
-	jsonColumnMap  map[string]string
-	Mapper         Mapper
-	versionField   string
-	versionIndex   int
-	versionDBField string
-	schema         *Schema
-	BoolSupport    bool
-	Rollback       bool
-	Driver         string
-}
-
-func NewWriter(connection *hv.Connection, tableName string, modelType reflect.Type, options ...Mapper) (*Writer, error) {
-	return NewWriterWithVersion(connection, tableName, modelType, "", options...)
-}
-func NewWriterWithVersion(connection *hv.Connection, tableName string, modelType reflect.Type, versionField string, options ...Mapper) (*Writer, error) {
-	var mapper Mapper
-	if len(options) > 0 {
-		mapper = options[0]
-	}
-	var loader *Loader
-	var err error
-	if mapper != nil {
-		loader, err = NewLoader(connection, tableName, modelType, mapper.DbToModel)
-	} else {
-		loader, err = NewLoader(connection, tableName, modelType, nil)
-	}
-	if err != nil {
-		return nil, err
-	}
-	schema := CreateSchema(modelType)
-	jsonColumnMap := MakeJsonColumnMap(modelType)
-	if len(versionField) > 0 {
-		index := FindFieldIndex(modelType, versionField)
-		if index >= 0 {
-			_, dbFieldName, exist := GetFieldByIndex(modelType, index)
-			if !exist {
-				dbFieldName = strings.ToLower(versionField)
-			}
-			return &Writer{Loader: loader, Rollback: true, schema: schema, Mapper: mapper, jsonColumnMap: jsonColumnMap, versionField: versionField, versionIndex: index, versionDBField: dbFieldName}, nil
-		}
-	}
-	return &Writer{Loader: loader, Rollback: true, schema: schema, Mapper: mapper, jsonColumnMap: jsonColumnMap, versionField: versionField, versionIndex: -1}, nil
-}
-func (s *Writer) Insert(ctx context.Context, model interface{}) (int64, error) {
-	var m interface{}
-	if s.Mapper != nil {
-		m2, err := s.Mapper.ModelToDb(ctx, model)
-		if err != nil {
-			return 0, err
-		}
-		m = m2
-	} else {
-		m = model
-	}
-	query := BuildToInsertWithVersion(s.table, m, s.versionIndex, false, s.schema)
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
-	cursor.Exec(ctx, query)
-	return 1, cursor.Err
-}
-func (s *Writer) Update(ctx context.Context, model interface{}) (int64, error) {
-	var m interface{}
-	if s.Mapper != nil {
-		m2, err := s.Mapper.ModelToDb(ctx, model)
-		if err != nil {
-			return 0, err
-		}
-		m = m2
-	} else {
-		m = model
-	}
-	query := BuildToUpdateWithVersion(s.table, m, s.versionIndex, s.schema)
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
-	cursor.Exec(ctx, query)
-	return 1, cursor.Err
-}
-func (s *Writer) Save(ctx context.Context, model interface{}) (int64, error) {
-	var m interface{}
-	if s.Mapper != nil {
-		m2, err := s.Mapper.ModelToDb(ctx, &model)
-		if err != nil {
-			return 0, err
-		}
-		m = m2
-	} else {
-		m = model
-	}
-	query := BuildToSave(s.table, m, s.schema)
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
-	cursor.Exec(ctx, query)
-	return 1, cursor.Err
-}
-func (s *Writer) Patch(ctx context.Context, model map[string]interface{}) (int64, error) {
-	if s.Mapper != nil {
-		_, err := s.Mapper.ModelToDb(ctx, &model)
-		if err != nil {
-			return 0, err
-		}
-	}
-	MapToDB(&model, s.modelType)
-	dbColumnMap := JSONToColumns(model, s.jsonColumnMap)
-	query := BuildToPatchWithVersion(s.table, dbColumnMap, s.schema.SKeys, s.versionDBField)
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
-	cursor.Exec(ctx, query)
-	return 1, cursor.Err
-}
-func MapToDB(model *map[string]interface{}, modelType reflect.Type) {
-	for colName, value := range *model {
-		if boolValue, boolOk := value.(bool); boolOk {
-			index := GetIndexByTag("json", colName, modelType)
-			if index > -1 {
-				valueS := modelType.Field(index).Tag.Get(strconv.FormatBool(boolValue))
-				valueInt, err := strconv.Atoi(valueS)
-				if err != nil {
-					(*model)[colName] = valueS
-				} else {
-					(*model)[colName] = valueInt
-				}
-				continue
-			}
-		}
-		(*model)[colName] = value
-	}
-}
-func (s *Writer) Delete(ctx context.Context, id interface{}) (int64, error) {
-	queryAll := fmt.Sprintf("delete from %s ", s.table)
-	sql := BuildFindById(queryAll, id, s.mapJsonColumnKeys, s.keys)
-	cursor := s.Connection.Cursor()
-	defer cursor.Close()
-	cursor.Exec(ctx, sql)
-	return 1, cursor.Err
-}
-
-type Mapper interface {
-	DbToModel(ctx context.Context, model interface{}) (interface{}, error)
-	ModelToDb(ctx context.Context, model interface{}) (interface{}, error)
-}
-
-func GetColumnName(modelType reflect.Type, jsonName string) (col string, colExist bool) {
-	index := GetIndexByTag("json", jsonName, modelType)
-	if index == -1 {
-		return jsonName, false
-	}
-	field := modelType.Field(index)
-	ormTag, ok2 := field.Tag.Lookup("gorm")
-	if !ok2 {
-		return "", true
-	}
-	if has := strings.Contains(ormTag, "column"); has {
-		str1 := strings.Split(ormTag, ";")
-		num := len(str1)
-		for i := 0; i < num; i++ {
-			str2 := strings.Split(str1[i], ":")
-			for j := 0; j < len(str2); j++ {
-				if str2[j] == "column" {
-					return str2[j+1], true
-				}
-			}
-		}
-	}
-	return jsonName, false
-}
-func GetIndexByTag(tag, key string, modelType reflect.Type) (index int) {
-	for i := 0; i < modelType.NumField(); i++ {
-		f := modelType.Field(i)
-		v := strings.Split(f.Tag.Get(tag), ",")[0]
-		if v == key {
-			return i
-		}
-	}
-	return -1
-}
 func MakeJsonColumnMap(modelType reflect.Type) map[string]string {
 	numField := modelType.NumField()
 	mapJsonColumn := make(map[string]string)
@@ -214,6 +36,19 @@ func MakeJsonColumnMap(modelType reflect.Type) map[string]string {
 		}
 	}
 	return mapJsonColumn
+}
+func GetWritableColumns(fields map[string]*FieldDB, jsonColumnMap map[string]string) map[string]string {
+	m := jsonColumnMap
+	for k, v := range jsonColumnMap {
+		for _, db := range fields {
+			if db.Column == v {
+				if db.Update == false && db.Key == false {
+					delete(m, k)
+				}
+			}
+		}
+	}
+	return m
 }
 func FindFieldIndex(modelType reflect.Type, fieldName string) int {
 	numField := modelType.NumField()
@@ -270,6 +105,9 @@ func Contains(s []string, str string) bool {
 	}
 
 	return false
+}
+func BuildToPatch(table string, model map[string]interface{}, keyColumns []string) string {
+	return BuildToPatchWithVersion(table, model, keyColumns, "")
 }
 func BuildToPatchWithVersion(table string, model map[string]interface{}, keyColumns []string, version string) string { //version column name db
 	values := make([]string, 0)
