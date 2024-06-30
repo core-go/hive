@@ -7,7 +7,7 @@ import (
 )
 
 type SearchAdapter[T any, K any, F any] struct {
-	*GenericAdapter[T, K]
+	*Adapter[T, K]
 	BuildQuery func(F) string
 	Mp         func(*T)
 }
@@ -20,11 +20,11 @@ func NewSearchAdapterWithVersion[T any, K any, F any](connection *hv.Connection,
 	if len(options) >= 1 {
 		mp = options[0]
 	}
-	adapter, err := NewGenericAdapterWithVersion[T, K](connection, tableName, versionField)
+	adapter, err := NewAdapterWithVersion[T, K](connection, tableName, versionField)
 	if err != nil {
 		return nil, err
 	}
-	builder := &SearchAdapter[T, K, F]{GenericAdapter: adapter, BuildQuery: buildQuery, Mp: mp}
+	builder := &SearchAdapter[T, K, F]{Adapter: adapter, BuildQuery: buildQuery, Mp: mp}
 	return builder, nil
 }
 

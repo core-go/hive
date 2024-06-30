@@ -11,16 +11,19 @@ import (
 	h "github.com/core-go/hive"
 )
 
-type GenericAdapter[T any, K any] struct {
-	*Adapter[*T]
+type Adapter[T any, K any] struct {
+	*Writer[*T]
 	Map    map[string]int
 	Fields string
 	Keys   []string
 	IdMap  bool
 }
 
-func NewGenericAdapterWithVersion[T any, K any](connection *hv.Connection, tableName string, versionField string) (*GenericAdapter[T, K], error) {
-	adapter := NewAdapterWithVersion[*T](connection, tableName, versionField)
+func NewAdapter[T any, K any](connection *hv.Connection, tableName string, versionField string) (*Adapter[T, K], error) {
+	return NewAdapterWithVersion[T, K](connection, tableName, "")
+}
+func NewAdapterWithVersion[T any, K any](connection *hv.Connection, tableName string, versionField string) (*Adapter[T, K], error) {
+	adapter := NewWriterWithVersion[*T](connection, tableName, versionField)
 	var t T
 	modelType := reflect.TypeOf(t)
 	if modelType.Kind() != reflect.Struct {
@@ -44,9 +47,9 @@ func NewGenericAdapterWithVersion[T any, K any](connection *hv.Connection, table
 		return nil, er0
 	}
 	fields := h.BuildFieldsBySchema(adapter.Schema)
-	return &GenericAdapter[T, K]{adapter, fieldsIndex, fields, primaryKeys, idMap}, nil
+	return &Adapter[T, K]{adapter, fieldsIndex, fields, primaryKeys, idMap}, nil
 }
-func (a *GenericAdapter[T, K]) All(ctx context.Context) ([]T, error) {
+func (a *Adapter[T, K]) All(ctx context.Context) ([]T, error) {
 	query := h.BuildSelectAllQuery(a.Table)
 	cursor := a.Connection.Cursor()
 	defer cursor.Close()
@@ -67,7 +70,7 @@ func toMap(obj interface{}) (map[string]interface{}, error) {
 	er2 := json.Unmarshal(b, &im)
 	return im, er2
 }
-func (a *GenericAdapter[T, K]) getId(k K) (interface{}, error) {
+func (a *Adapter[T, K]) getId(k K) (interface{}, error) {
 	if len(a.Keys) >= 2 && !a.IdMap {
 		ri, err := toMap(k)
 		return ri, err
@@ -75,7 +78,7 @@ func (a *GenericAdapter[T, K]) getId(k K) (interface{}, error) {
 		return k, nil
 	}
 }
-func (a *GenericAdapter[T, K]) Load(ctx context.Context, id K) (*T, error) {
+func (a *Adapter[T, K]) Load(ctx context.Context, id K) (*T, error) {
 	ip, er0 := a.getId(id)
 	if er0 != nil {
 		return nil, er0
@@ -98,7 +101,7 @@ func (a *GenericAdapter[T, K]) Load(ctx context.Context, id K) (*T, error) {
 	}
 	return nil, nil
 }
-func (a *GenericAdapter[T, K]) Exist(ctx context.Context, id K) (bool, error) {
+func (a *Adapter[T, K]) Exist(ctx context.Context, id K) (bool, error) {
 	ip, er0 := a.getId(id)
 	if er0 != nil {
 		return false, er0
@@ -116,7 +119,7 @@ func (a *GenericAdapter[T, K]) Exist(ctx context.Context, id K) (bool, error) {
 	}
 	return false, nil
 }
-func (a *GenericAdapter[T, K]) Delete(ctx context.Context, id K) (int64, error) {
+func (a *Adapter[T, K]) Delete(ctx context.Context, id K) (int64, error) {
 	ip, er0 := a.getId(id)
 	if er0 != nil {
 		return 0, er0

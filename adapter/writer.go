@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-type Adapter[T any] struct {
+type Writer[T any] struct {
 	Connection *hv.Connection
 	Table      string
 	// Keys           []string
@@ -18,10 +18,10 @@ type Adapter[T any] struct {
 	versionDBField string
 }
 
-func NewAdapter[T any](connection *hv.Connection, tableName string) *Adapter[T] {
-	return NewAdapterWithVersion[T](connection, tableName, "")
+func NewWriter[T any](connection *hv.Connection, tableName string) *Writer[T] {
+	return NewWriterWithVersion[T](connection, tableName, "")
 }
-func NewAdapterWithVersion[T any](connection *hv.Connection, tableName string, versionField string) *Adapter[T] {
+func NewWriterWithVersion[T any](connection *hv.Connection, tableName string, versionField string) *Writer[T] {
 	var t T
 	modelType := reflect.TypeOf(t)
 	if modelType.Kind() == reflect.Ptr {
@@ -31,7 +31,7 @@ func NewAdapterWithVersion[T any](connection *hv.Connection, tableName string, v
 	mapJsonColumnKeys := h.MapJsonColumn(modelType)
 	schema := h.CreateSchema(modelType)
 
-	adapter := &Adapter[T]{Connection: connection, Table: tableName, Schema: schema, JsonColumnMap: mapJsonColumnKeys, versionIndex: -1}
+	adapter := &Writer[T]{Connection: connection, Table: tableName, Schema: schema, JsonColumnMap: mapJsonColumnKeys, versionIndex: -1}
 	if len(versionField) > 0 {
 		index := h.FindFieldIndex(modelType, versionField)
 		if index >= 0 {
@@ -46,7 +46,7 @@ func NewAdapterWithVersion[T any](connection *hv.Connection, tableName string, v
 	return adapter
 }
 
-func (a *Adapter[T]) Create(ctx context.Context, model T) (int64, error) {
+func (a *Writer[T]) Create(ctx context.Context, model T) (int64, error) {
 	query := h.BuildToInsertWithVersion(a.Table, model, a.versionIndex, false, a.Schema)
 	cursor := a.Connection.Cursor()
 	cursor.Exec(ctx, query)
@@ -55,7 +55,7 @@ func (a *Adapter[T]) Create(ctx context.Context, model T) (int64, error) {
 	}
 	return 1, nil
 }
-func (a *Adapter[T]) Update(ctx context.Context, model T) (int64, error) {
+func (a *Writer[T]) Update(ctx context.Context, model T) (int64, error) {
 	query := h.BuildToUpdateWithVersion(a.Table, model, a.versionIndex, a.Schema)
 	cursor := a.Connection.Cursor()
 	cursor.Exec(ctx, query)
@@ -64,7 +64,7 @@ func (a *Adapter[T]) Update(ctx context.Context, model T) (int64, error) {
 	}
 	return 1, nil
 }
-func (a *Adapter[T]) Patch(ctx context.Context, model map[string]interface{}) (int64, error) {
+func (a *Writer[T]) Patch(ctx context.Context, model map[string]interface{}) (int64, error) {
 	colMap := h.JSONToColumns(model, a.JsonColumnMap)
 	query := h.BuildToPatchWithVersion(a.Table, colMap, a.Schema.SKeys, a.versionDBField)
 	cursor := a.Connection.Cursor()
@@ -74,7 +74,7 @@ func (a *Adapter[T]) Patch(ctx context.Context, model map[string]interface{}) (i
 	}
 	return 1, nil
 }
-func (a *Adapter[T]) Save(ctx context.Context, model T) (int64, error) {
+func (a *Writer[T]) Save(ctx context.Context, model T) (int64, error) {
 	query := h.BuildToInsertWithVersion(a.Table, model, a.versionIndex, false, a.Schema)
 	cursor := a.Connection.Cursor()
 	cursor.Exec(ctx, query)
